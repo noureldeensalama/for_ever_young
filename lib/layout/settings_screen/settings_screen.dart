@@ -40,7 +40,7 @@ class SettingsScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => WebViewScreen(url: url),
+                          builder: (context) => SecureLoginScreen(),
                         ),
                       );
                     },
