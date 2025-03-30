@@ -5,14 +5,14 @@ import 'package:local_auth/local_auth.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SecureLoginScreen extends StatefulWidget {
-  const SecureLoginScreen({super.key});
+class AccountLoginScreen extends StatefulWidget {
+  const AccountLoginScreen({super.key});
 
   @override
-  _SecureLoginScreenState createState() => _SecureLoginScreenState();
+  _AccountLoginScreenState createState() => _AccountLoginScreenState();
 }
 
-class _SecureLoginScreenState extends State<SecureLoginScreen> {
+class _AccountLoginScreenState extends State<AccountLoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -30,13 +30,22 @@ class _SecureLoginScreenState extends State<SecureLoginScreen> {
     try {
       String? savedUsername = await _secureStorage.read(key: 'username');
       String? savedPassword = await _secureStorage.read(key: 'password');
+      String? firstLoginDone = await _secureStorage.read(key: 'first_login_done');
       bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
 
+      // First-time login: Require manual credentials
+      if (firstLoginDone == null) {
+        _usernameController.text = savedUsername ?? '';
+        _passwordController.text = savedPassword ?? '';
+        return; // Exit to prevent Face ID attempt
+      }
+
+      // Subsequent logins: Use Face ID if available
       if (savedUsername != null && savedPassword != null && canCheckBiometrics) {
         bool didAuthenticate = await _localAuth.authenticate(
           localizedReason: 'Authenticate to access your account',
           options: const AuthenticationOptions(
-            biometricOnly: true, // Use Face ID / Fingerprint only
+            biometricOnly: true,
             useErrorDialogs: true,
             stickyAuth: true,
           ),
@@ -60,6 +69,7 @@ class _SecureLoginScreenState extends State<SecureLoginScreen> {
 
     await _secureStorage.write(key: 'username', value: _usernameController.text);
     await _secureStorage.write(key: 'password', value: _passwordController.text);
+    await _secureStorage.write(key: 'first_login_done', value: "true"); // Set login flag
 
     setState(() => _isLoggingIn = false);
     _navigateToWebView();
@@ -205,6 +215,7 @@ class _SecureWebViewScreenState extends State<SecureWebViewScreen> {
     super.initState();
     _initializeWebView();
   }
+
   Future<void> _initializeWebView() async {
     setState(() {
       _hasError = false; // Reset error state on reload
@@ -261,10 +272,35 @@ class _SecureWebViewScreenState extends State<SecureWebViewScreen> {
     }
   }
 
+  Future<void> _logout() async {
+    await _secureStorage.delete(key: 'username');
+    await _secureStorage.delete(key: 'password');
+    await _secureStorage.delete(key: 'first_login_done'); // Ensure Face ID is not used next time
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const AccountLoginScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("My Account")),
+      appBar: AppBar(
+        title: const Text("My Account"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              _controller.reload();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+          ),
+        ],
+      ),
       body: _hasError
           ? Center(
               child: Column(

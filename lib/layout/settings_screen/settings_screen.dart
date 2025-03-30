@@ -18,7 +18,6 @@ class SettingsScreen extends StatelessWidget {
     return BlocConsumer<ForEverYoungCubit, ForEverYoungStates>(
       listener: (context, state) {},
       builder: (context, state) {
-        final String url = "https://web2.myaestheticspro.com/portal/index.cfm?05CAA878344543800DCCE4E5C183FD59";
         final cubit = ForEverYoungCubit.get(context);
         final bool isDarkMode = cubit.isDark;
 
@@ -40,7 +39,7 @@ class SettingsScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => SecureLoginScreen(),
+                          builder: (context) => AccountLoginScreen(),
                         ),
                       );
                     },
@@ -85,7 +84,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   SizedBox(height: 3),
                   buildCard(Icons.calendar_month_outlined, "Appointments", () {
-                    navigateTo(context, AppointmentsScreen());
+                    navigateTo(context, AppointmentsLoginScreen());
                   }, isDarkMode),
                   buildDropdownCard(
                     icon: Icons.wb_sunny_outlined, // Sun Icon
