@@ -30,7 +30,6 @@ class MyApp extends StatelessWidget {
       child: BlocBuilder<ForEverYoungCubit, ForEverYoungStates>(
         builder: (context, state) {
           return MaterialApp(
-            // debugShowCheckedModeBanner: false,
             theme: ThemeData(
               scaffoldBackgroundColor: Colors.white,
               appBarTheme: AppBarTheme(
@@ -58,7 +57,6 @@ class MyApp extends StatelessWidget {
                 unselectedLabelStyle: TextStyle(
                     color: Colors.grey[400]
                 ),
-                // backgroundColor: Colors.black
                 backgroundColor: Colors.white, // Soft light grey for a smooth transition
               ),
               iconTheme: IconThemeData(
@@ -89,10 +87,10 @@ class MyApp extends StatelessWidget {
             themeMode: ForEverYoungCubit.get(context).isDark ? ThemeMode.dark : ThemeMode.light,
             home: Directionality(
               textDirection: TextDirection.ltr,
-              // child: ServicesDetailsScreen(),
-              child: ForEverYoungLayout(),
+              child:  const ForEverYoungLayout(),
             ),
-          );
+              // child: ForEverYoungLayout(),
+            );
         },
       ),
     );

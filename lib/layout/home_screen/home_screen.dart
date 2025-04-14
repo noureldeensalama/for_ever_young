@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:for_ever_young/cubit/cubit.dart';
 import 'package:for_ever_young/cubit/states.dart';
@@ -285,96 +286,102 @@ class _SearchScreenState extends State<SearchScreen> {
     final Color textColor = isDarkMode ? Colors.white : Colors.black;
     final Color borderColor = isDarkMode ? Colors.grey : Colors.black54;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: backgroundColor,
-        title: Image.asset(
-          'images/logo_banner.png',
-          height: 60,
-        ),
-        iconTheme: IconThemeData(color: textColor),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: buttonColor, // Replace with your exact blue
+        statusBarIconBrightness: Brightness.light, // For white icons
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: SizedBox(
-              height: 60,
-              child: TextField(
-                controller: searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search Services',
-                  hintStyle: TextStyle(fontSize: 14, color: textColor.withOpacity(0.7)),
-                  prefixIcon: Icon(Icons.search, size: 20, color: textColor),
-                  contentPadding:
-                  EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: textColor),
-                  ),
-                ),
-                style: TextStyle(fontSize: 14, color: textColor),
-                onChanged: (query) => filterSearch(query),
-              ),
-            ),
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          backgroundColor: backgroundColor,
+          title: Image.asset(
+            'images/logo_banner.png',
+            height: 60,
           ),
-          Expanded(
-            child: filteredServices.isEmpty
-                ? Center(
-              child: Text(
-                "No results found",
-                style: TextStyle(color: textColor),
-              ),
-            )
-                : ListView.separated(
-              itemCount: filteredServices.length,
-              separatorBuilder: (context, index) =>
-                  Divider(height: 1, indent: 15, endIndent: 15, thickness: 0.5, color: borderColor),
-              itemBuilder: (context, index) {
-                final service = filteredServices[index];
-                return Padding(
-                  padding: const EdgeInsets.all(5.0),
-                  child: ListTile(
-                    title: Text(
-                      service["name"],
-                      style: TextStyle(fontSize: 14, color: textColor),
+          iconTheme: IconThemeData(color: textColor),
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: SizedBox(
+                height: 60,
+                child: TextField(
+                  controller: searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search Services',
+                    hintStyle: TextStyle(fontSize: 14, color: textColor.withOpacity(0.7)),
+                    prefixIcon: Icon(Icons.search, size: 20, color: textColor),
+                    contentPadding:
+                    EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: borderColor),
                     ),
-                    onTap: () {
-                      if (service["tabIndex"] != null) {
-                        // Navigate to ServicesDetailsScreen with the specified tab index
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ServicesDetailsScreen(
-                              initialTabIndex: service["tabIndex"],
-                            ),
-                          ),
-                        );
-                      } else {
-                        // Navigate to the specified screen
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => service["screen"],
-                          ),
-                        );
-                      }
-                    },
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: textColor),
+                    ),
                   ),
-                );
-              },
+                  style: TextStyle(fontSize: 14, color: textColor),
+                  onChanged: (query) => filterSearch(query),
+                ),
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: filteredServices.isEmpty
+                  ? Center(
+                child: Text(
+                  "No results found",
+                  style: TextStyle(color: textColor),
+                ),
+              )
+                  : ListView.separated(
+                itemCount: filteredServices.length,
+                separatorBuilder: (context, index) =>
+                    Divider(height: 1, indent: 15, endIndent: 15, thickness: 0.5, color: borderColor),
+                itemBuilder: (context, index) {
+                  final service = filteredServices[index];
+                  return Padding(
+                    padding: const EdgeInsets.all(5.0),
+                    child: ListTile(
+                      title: Text(
+                        service["name"],
+                        style: TextStyle(fontSize: 14, color: textColor),
+                      ),
+                      onTap: () {
+                        if (service["tabIndex"] != null) {
+                          // Navigate to ServicesDetailsScreen with the specified tab index
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ServicesDetailsScreen(
+                                initialTabIndex: service["tabIndex"],
+                              ),
+                            ),
+                          );
+                        } else {
+                          // Navigate to the specified screen
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => service["screen"],
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

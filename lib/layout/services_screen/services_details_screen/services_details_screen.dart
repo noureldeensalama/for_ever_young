@@ -245,7 +245,7 @@ class _ServicesDetailsScreenState extends State<ServicesDetailsScreen> {
         alignment: Alignment.centerRight,
         child: ElevatedButton(
           onPressed: () {
-            navigateTo(context, BookServicesScreen());
+            navigateTo(context, BookingPage());
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: secondaryColor,

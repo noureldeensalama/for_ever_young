@@ -32,13 +32,6 @@ class ForEverYoungCubit extends Cubit<ForEverYoungStates> {
       ),
       label: 'Services',
     ),
-    // const BottomNavigationBarItem(
-    //   icon: Icon(
-    //     FluentIcons.cart_20_regular,
-    //     size: 30,
-    //   ),
-    //   label: 'Shopping',
-    // ),
     const BottomNavigationBarItem(
       icon: Icon(
         FluentIcons.settings_20_regular,
@@ -51,7 +44,6 @@ class ForEverYoungCubit extends Cubit<ForEverYoungStates> {
   List<Widget> screens = [
     HomeScreen(),
     ServicesScreen(),
-    // ShopScreen(),
     SettingsScreen(),
   ];
 
@@ -70,24 +62,7 @@ class ForEverYoungCubit extends Cubit<ForEverYoungStates> {
 
   void changeBottomNavBar(int index) {
     currentIndex = index;
-    if (index == 1) {
-      fetchClientData();
-    }
     emit(ForEverYoungBottomNavBarState());
   }
 
-
-  // Profile Images
-
-
-
-  Future<void> fetchClientData() async {
-    try {
-      emit(ForEverYoungGetUserLoadingState()); // Emit loading state if needed
-      // await auth.getClientData(); // Call the method from AestheticProAuth
-      emit(ForEverYoungGetUserSuccessState()); // Emit success state if needed
-    } catch (e) {
-      emit(ForEverYoungGetUserErrorState(e.toString())); // Emit error state
-    }
-  }
 }

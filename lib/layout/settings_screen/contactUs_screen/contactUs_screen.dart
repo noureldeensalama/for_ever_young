@@ -37,7 +37,23 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Contact Support")),
+      appBar: AppBar(
+        title: ClipRRect(
+          borderRadius: BorderRadius.circular(13), // Adjust for more or less rounding
+          child: Image.asset('images/logo_banner.png', height: 50,),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.support_agent),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ContactUsScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: Text("Redirecting to email...", style: TextStyle(fontSize: 18)),
       ),

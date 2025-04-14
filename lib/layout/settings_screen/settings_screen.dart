@@ -2,16 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:for_ever_young/cubit/cubit.dart';
 import 'package:for_ever_young/cubit/states.dart';
+import 'package:for_ever_young/layout/services_screen/services_details_screen/book_services_screen/book_services_screen.dart';
 import 'package:for_ever_young/layout/settings_screen/AccountWebView/AccountWebView.dart';
 import 'package:for_ever_young/layout/settings_screen/aboutUs_screen/aboutUs_screen.dart';
-import 'package:for_ever_young/layout/settings_screen/appointments_screen/appointments_screen.dart';
 import 'package:for_ever_young/layout/settings_screen/contactUs_screen/contactUs_screen.dart';
 import 'package:for_ever_young/layout/settings_screen/faq_screen/faq_screen.dart';
 import 'package:for_ever_young/shared/colors_and_themes/color.dart';
 import 'package:for_ever_young/shared/components.dart';
+import 'package:simple_icons/simple_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'location_page/location_page.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  void _launchURL(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,8 +94,8 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 3),
-                  buildCard(Icons.calendar_month_outlined, "Appointments", () {
-                    navigateTo(context, AppointmentsLoginScreen());
+                  buildCard(Icons.calendar_month_outlined, "Book Appointment", () {
+                    navigateTo(context, BookingPage());
                   }, isDarkMode),
                   buildDropdownCard(
                     icon: Icons.wb_sunny_outlined, // Sun Icon
@@ -96,6 +107,7 @@ class SettingsScreen extends StatelessWidget {
                     },
                     isDarkMode: isDarkMode,
                   ),
+
                   SizedBox(height: 10),
                   Align(
                     alignment: Alignment.centerLeft, // Aligns text to the left
@@ -111,6 +123,10 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  SizedBox(height: 10),
+                  buildCard(Icons.location_on, "Location", () {
+                    navigateTo(context, LocationRedirectScreen());
+                  }, isDarkMode),
                   SizedBox(height: 3),
                   buildCard(Icons.question_mark_outlined, "FAQ", () {
                     navigateTo(context, FAQScreen());
@@ -123,6 +139,51 @@ class SettingsScreen extends StatelessWidget {
                   buildCard(Icons.mail_outline, "Contact Us", () {
                     navigateTo(context, ContactUsScreen());
                   }, isDarkMode),
+                  SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft, // Aligns text to the left
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 16, top: 5), // Adds left spacing
+                      child: Text(
+                        'Follow Us',
+                        style: TextStyle(
+                          fontSize: 16, // Smaller text
+                          color: Colors.grey, // Optional: make it subtle
+                          fontWeight: FontWeight.w400, // Light font weight
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(SimpleIcons.facebook), // Facebook icon
+                        onPressed: () {
+                          _launchURL('https://www.facebook.com/4EverYoungStl/');
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(SimpleIcons.instagram), // Instagram icon
+                        onPressed: () {
+                          _launchURL('https://www.instagram.com/4everyoungstl/');
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(SimpleIcons.tiktok), // TikTok icon
+                        onPressed: () {
+                          _launchURL('https://www.tiktok.com/@4everyoungstl');
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(SimpleIcons.youtube), // YouTube icon
+                        onPressed: () {
+                          _launchURL('https://www.youtube.com/channel/UCGFcZP83mCWqMX-6oxvk4HA');
+                        },
+                      ),
+                    ],
+                  ),
                   SizedBox(height: 12),
                 ],
               ),
