@@ -1,4 +1,4 @@
-import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -45,8 +45,9 @@ class _BookingPageState extends State<BookingPage> {
     _initializeWebViewController();
     _startProgressTracking();
 
-    // Delay showing WebView for 3 seconds
-    Future.delayed(const Duration(seconds: 4), () {
+
+    //To fix the wait at the start of the app
+    Future.delayed(const Duration(seconds: 10), () {
       if (mounted) {
         setState(() {
           _showWebView = true;
@@ -55,8 +56,47 @@ class _BookingPageState extends State<BookingPage> {
     });
   }
 
-  void _initializeWebViewController() {
+
+  Future<void> _initializeWebViewController() async {
+    // Add connectivity package to pubspec.yaml
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          // In your build() method, replace the error display with:
+          if (_hasError)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wifi_off, size: 50),
+                  SizedBox(height: 16),
+                  Text(
+                    'Please check your internet connection',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _hasError = false;
+                        isLoading = true;
+                      });
+                      _initializeWebViewController();
+                    },
+                    child: Text('Try Again'),
+                  ),
+                ],
+              ),
+            );
+        });
+      }
+      return;
+    }
     controller = WebViewController()
+      ..enableZoom(false)
+      ..setBackgroundColor(Colors.white)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel('NavigateToHome',
           onMessageReceived: (message) {
@@ -121,10 +161,22 @@ class _BookingPageState extends State<BookingPage> {
 
     if (_reloadAttempts < _maxReloadAttempts) {
       _reloadAttempts++;
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) {
-          controller.reload();
-        }
+// In your initState
+      Future.delayed(const Duration(seconds: 5), () {
+        if (!mounted) return;
+        setState(() {
+          _showWebView = true;
+        });
+
+        // Add timeout
+        Future.delayed(const Duration(seconds: 15), () {
+          if (isLoading && mounted) {
+            setState(() {
+              _hasError = true;
+              Text('Taking longer than expected. Please try again.');
+            });
+          }
+        });
       });
     }
   }
@@ -153,26 +205,6 @@ class _BookingPageState extends State<BookingPage> {
 
       final endDateTime = startDateTime.add(const Duration(hours: 1));
 
-      final event = Event(
-        title: "4EVERYOUNG Appointment",
-        description: "Your aesthetic treatment session",
-        location: "4EVERYOUNGSTL Clinic",
-        startDate: startDateTime,
-        endDate: endDateTime,
-        iosParams: const IOSParams(
-          reminder: Duration(minutes: 30),
-        ),
-      );
-
-      final success = await Add2Calendar.addEvent2Cal(event);
-      if (success) {
-        setState(() {
-          _calendarEventAdded = true;
-          _calendarError = null;
-        });
-      } else {
-        setState(() => _calendarError = 'Could not add to calendar');
-      }
     } catch (e) {
       setState(() => _calendarError = 'Error: ${e.toString()}');
       if (kDebugMode) {
@@ -185,22 +217,20 @@ class _BookingPageState extends State<BookingPage> {
     if (!_dateSelectionStarted) return;
 
     try {
-      final dateString = await controller.runJavaScriptReturningResult('''
-        (function() {
-          try {
-            const input = document.querySelector('input[name="ApptDate"]');
-            if (input && input.value) {
-              return input.value;
-            }
-            return null;
-          } catch(e) {
-            return null;
-          }
-        })();
-      ''');
+      final dateResult = await controller.runJavaScriptReturningResult('''
+      (function() {
+        try {
+          const input = document.querySelector('input[name="ApptDate"]');
+          return input?.value || '';
+        } catch(e) {
+          return '';
+        }
+      })();
+    ''');
 
-      if (dateString != null && dateString.toString().isNotEmpty) {
-        final parts = dateString.toString().split('/');
+      final dateString = dateResult.toString();
+      if (dateString.isNotEmpty) {
+        final parts = dateString.split('/');
         if (parts.length == 3) {
           final newDate = DateTime(
             int.parse(parts[2]),
@@ -224,31 +254,43 @@ class _BookingPageState extends State<BookingPage> {
       }
     }
   }
-
   Future<void> _checkForSelectedTime() async {
     try {
-      final timeString = await controller.runJavaScriptReturningResult('''
+      final timeResult = await controller.runJavaScriptReturningResult('''
       (function() {
-        const dropdown = document.getElementById('mApptTimeSelect');
-        if (!dropdown) return null;
-        const hiddenField = document.getElementById('bn_ApptTime');
-        return hiddenField?.value || dropdown.value;
+        try {
+          const dropdown = document.getElementById('mApptTimeSelect');
+          const hiddenField = document.getElementById('bn_ApptTime');
+          if (hiddenField && hiddenField.value) {
+            return hiddenField.value;
+          }
+          if (dropdown && dropdown.value) {
+            return dropdown.value;
+          }
+          return '';
+        } catch(e) {
+          return '';
+        }
       })();
     ''');
 
-      if (timeString != null && timeString.toString().isNotEmpty) {
-        final newTimeStr = timeString.toString();
+      final timeString = timeResult.toString();
+      if (timeString.isNotEmpty) {
         if (kDebugMode) {
-          print('Selected time from web: $newTimeStr');
+          print('Selected time from web: $timeString');
         }
 
         if (_selectedDate != null) {
-          final timeParts = newTimeStr.split('/:|\s/');
-          if (timeParts.length >= 2) {
-            int hour = int.parse(timeParts[0]);
-            final minute = int.parse(timeParts[1]);
-            final period = timeParts.length > 2 ? timeParts[2] : '';
+          // Improved time parsing
+          final timeRegex = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)?', caseSensitive: false);
+          final match = timeRegex.firstMatch(timeString);
 
+          if (match != null) {
+            int hour = int.parse(match.group(1)!);
+            final minute = int.parse(match.group(2)!);
+            final period = match.group(3) ?? '';
+
+            // Convert to 24-hour format
             if (period.toUpperCase() == 'PM' && hour < 12) hour += 12;
             if (period.toUpperCase() == 'AM' && hour == 12) hour = 0;
 
@@ -270,19 +312,20 @@ class _BookingPageState extends State<BookingPage> {
       }
     }
   }
-
   void _startProgressTracking() {
     progressTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (!mounted) return;
       try {
-        final onTimePage = await controller.runJavaScriptReturningResult('''
-          (function() {
-            return document.querySelector('#mApptTimeSelect') !== null || 
-                   document.querySelector('#bn_ApptTime') !== null;
-          })();
-        ''');
+        final onTimePageResult = await controller.runJavaScriptReturningResult('''
+        (function() {
+          return document.querySelector('#mApptTimeSelect') !== null || 
+                 document.querySelector('#bn_ApptTime') !== null;
+        })();
+      ''');
 
-        if (onTimePage == true) {
+        final onTimePage = onTimePageResult.toString() == 'true';
+
+        if (onTimePage) {
           setState(() => _dateSelectionStarted = true);
           await _checkForDateSelection();
           await _checkForSelectedTime();
@@ -296,7 +339,6 @@ class _BookingPageState extends State<BookingPage> {
       }
     });
   }
-
   void _logAppointmentDetails() {
     if (kDebugMode) {
       print('=== Current Selection ===');
@@ -609,7 +651,10 @@ class _BookingPageState extends State<BookingPage> {
     ''');
 
       // 2. Wait and verify removal
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(const Duration(seconds: 2), () {
+        _checkForDateSelection();
+        _checkForSelectedTime();
+      });
       await controller.runJavaScript(r'''
       (function() {
         // Verify removal

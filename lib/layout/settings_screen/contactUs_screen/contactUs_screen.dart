@@ -29,7 +29,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
       await launchUrl(emailUri);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open email app')),
+        SnackBar(content: Text('Error occurred while redirecting to your email, please try again.')),
       );
     }
   }

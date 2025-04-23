@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -84,52 +86,65 @@ class _AccountLoginScreenState extends State<AccountLoginScreen> {
     setState(() => _isLoggingIn = true);
     _loginSuccess = false;
 
-    try {
-      // Load the login page
-      await _webViewController.loadRequest(Uri.parse('https://web2.myaestheticspro.com/portal/index.cfm?05CAA878344543800DCCE4E5C183FD59'));
+    final Completer<bool> loginCompleter = Completer();
 
-      // Wait for page to load
-      await Future.delayed(const Duration(seconds: 2));
+    _webViewController.setNavigationDelegate(
+      NavigationDelegate(
+        onPageFinished: (url) async {
+          if (url.contains('index.cfm')) {
+            await _webViewController.runJavaScript('''
+            setTimeout(function() {
+              document.getElementById("username").value = "${_usernameController.text}";
+              document.getElementById("password").value = "${_passwordController.text}";
+              document.getElementById("login_btn").click();
+            }, 1000);
+          ''');
+          }
+        },
+        onUrlChange: (change) {
+          if (change.url != null && change.url!.contains('portal/app/')) {
+            _loginSuccess = true;
+            if (!loginCompleter.isCompleted) loginCompleter.complete(true);
+          }
+        },
+        onWebResourceError: (error) {
+          debugPrint("Web resource error: $error");
+          if (!loginCompleter.isCompleted) loginCompleter.complete(false);
+        },
+      ),
+    );
 
-      // Inject credentials
-      await _webViewController.runJavaScript('''
-        document.getElementById("username").value = "${_usernameController.text}";
-        document.getElementById("password").value = "${_passwordController.text}";
-        document.getElementById("login_btn").click();
-      ''');
+    await _webViewController.loadRequest(
+      Uri.parse('https://web2.myaestheticspro.com/portal/index.cfm?05CAA878344543800DCCE4E5C183FD59'),
+    );
 
-      // Wait for login to complete (5 seconds max)
-      await Future.delayed(const Duration(seconds: 5));
+    // ✅ Wait for URL to change OR timeout after 10 seconds
+    final bool success = await loginCompleter.future
+        .timeout(const Duration(seconds: 10), onTimeout: () => false);
 
-      if (!_loginSuccess) {
-        // If URL didn't change to success page
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(backgroundColor: Colors.red, content: const Text('Login failed. Please check your credentials', style: TextStyle(fontSize: 30,color: Colors.white),))
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint("Login error: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(backgroundColor: Colors.red, content: const Text('Please check your Internet Connection', style: TextStyle(fontSize: 30,color: Colors.white),))
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoggingIn = false);
-      }
-    }
-
-    // Only save credentials if login was successful
-    if (_loginSuccess) {
+    if (success) {
       await _secureStorage.write(key: 'username', value: _usernameController.text);
       await _secureStorage.write(key: 'password', value: _passwordController.text);
       await _secureStorage.write(key: 'first_login_done', value: "true");
+      _navigateToProfileScreen();
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            content: const Text(
+              'Login failed. Please check your credentials',
+              style: TextStyle(fontSize: 30, color: Colors.white),
+            ),
+          ),
+        );
+      }
+    }
+
+    if (mounted) {
+      setState(() => _isLoggingIn = false);
     }
   }
-
   void _navigateToProfileScreen() {
     if (!mounted) return;
     Navigator.pushReplacement(
@@ -401,6 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       setState(() {
         _isLoading = false;
       });
+      debugPrint("Extracting profile data...");
 
       // Try to get the page HTML for debugging
       try {
@@ -608,9 +624,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             const Icon(Icons.location_on, size: 16),
                             const SizedBox(width: 4),
                             Text(
-                                address,
+                              address,
                               style: TextStyle(
-                                fontSize: 12
+                                  fontSize: 12
                               ),
                             ),
                           ],

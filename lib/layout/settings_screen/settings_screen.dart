@@ -167,7 +167,7 @@ class SettingsScreen extends StatelessWidget {
                       IconButton(
                         icon: Icon(SimpleIcons.instagram), // Instagram icon
                         onPressed: () {
-                          _launchURL('https://www.instagram.com/4everyoungstl/');
+                          _launchURL('https://www.instagram.com/4everyoungstl?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==');
                         },
                       ),
                       IconButton(
