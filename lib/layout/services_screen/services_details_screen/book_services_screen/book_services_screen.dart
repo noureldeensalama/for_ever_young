@@ -20,7 +20,7 @@ class BookingPage extends StatefulWidget {
 class _BookingPageState extends State<BookingPage> {
   late final WebViewController controller;
   bool isLoading = true;
-  bool _showWebView = false; // New flag to control WebView visibility
+  bool _showWebView = false;
   int bookingProgress = 0;
   Timer? progressTimer;
   String currentUrl = '';
@@ -38,6 +38,7 @@ class _BookingPageState extends State<BookingPage> {
   bool _hasError = false;
   int _reloadAttempts = 0;
   static const int _maxReloadAttempts = 3;
+  Timer? _globalTimeoutTimer;
 
   @override
   void initState() {
@@ -45,8 +46,7 @@ class _BookingPageState extends State<BookingPage> {
     _initializeWebViewController();
     _startProgressTracking();
 
-
-    //To fix the wait at the start of the app
+    // To fix the wait at the start of the app
     Future.delayed(const Duration(seconds: 10), () {
       if (mounted) {
         setState(() {
@@ -56,44 +56,36 @@ class _BookingPageState extends State<BookingPage> {
     });
   }
 
+  void _startTimeout() {
+    _cancelTimeout();
+    _globalTimeoutTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted && isLoading) {
+        setState(() {
+          isLoading = false;
+          _hasError = true;
+          _showWebView = false;
+        });
+      }
+    });
+  }
+
+  void _cancelTimeout() {
+    if (_globalTimeoutTimer?.isActive ?? false) {
+      _globalTimeoutTimer?.cancel();
+    }
+  }
 
   Future<void> _initializeWebViewController() async {
-    // Add connectivity package to pubspec.yaml
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
       if (mounted) {
         setState(() {
           _hasError = true;
-          // In your build() method, replace the error display with:
-          if (_hasError)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.wifi_off, size: 50),
-                  SizedBox(height: 16),
-                  Text(
-                    'Please check your internet connection',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _hasError = false;
-                        isLoading = true;
-                      });
-                      _initializeWebViewController();
-                    },
-                    child: Text('Try Again'),
-                  ),
-                ],
-              ),
-            );
         });
       }
       return;
     }
+
     controller = WebViewController()
       ..enableZoom(false)
       ..setBackgroundColor(Colors.white)
@@ -103,7 +95,7 @@ class _BookingPageState extends State<BookingPage> {
             Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (context) => ForEverYoungLayout())
             );
-          }
+            }
       )
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -130,17 +122,21 @@ class _BookingPageState extends State<BookingPage> {
           },
           onPageFinished: (String url) async {
             await _cleanPage();
-            setState(() {
-              isLoading = false;
-              _hasError = false;
-              _reloadAttempts = 0;
-              isFinalPage = url.contains('confirmation') ||
-                  url.contains('thankyou') ||
-                  url.contains('complete');
+            Future.delayed(const Duration(seconds: 10), () {
+              if (!mounted) return;
+              setState(() {
+                _showWebView = true;
+                isLoading = false;
+                _hasError = false;
+                _reloadAttempts = 0;
+                isFinalPage = url.contains('confirmation') ||
+                    url.contains('thankyou') ||
+                    url.contains('complete');
 
-              if (isFinalPage && _selectedDate != null && _selectedTime != null) {
-                _showCalendarCard = true;
-              }
+                if (isFinalPage && _selectedDate != null && _selectedTime != null) {
+                  _showCalendarCard = true;
+                }
+              });
             });
           },
           onWebResourceError: (error) {
@@ -161,19 +157,16 @@ class _BookingPageState extends State<BookingPage> {
 
     if (_reloadAttempts < _maxReloadAttempts) {
       _reloadAttempts++;
-// In your initState
       Future.delayed(const Duration(seconds: 5), () {
         if (!mounted) return;
         setState(() {
           _showWebView = true;
         });
 
-        // Add timeout
         Future.delayed(const Duration(seconds: 15), () {
           if (isLoading && mounted) {
             setState(() {
               _hasError = true;
-              Text('Taking longer than expected. Please try again.');
             });
           }
         });
@@ -183,11 +176,11 @@ class _BookingPageState extends State<BookingPage> {
 
   @override
   void dispose() {
+    _cancelTimeout();
     progressTimer?.cancel();
     super.dispose();
   }
 
-  // Calendar Methods
   Future<void> _addToCalendar() async {
     if (_selectedDate == null || _selectedTime == null) {
       setState(() => _calendarError = 'Appointment time not available');
@@ -204,7 +197,11 @@ class _BookingPageState extends State<BookingPage> {
       );
 
       final endDateTime = startDateTime.add(const Duration(hours: 1));
-
+      // Implement actual calendar integration here
+      setState(() {
+        _calendarEventAdded = true;
+        _showCalendarCard = false;
+      });
     } catch (e) {
       setState(() => _calendarError = 'Error: ${e.toString()}');
       if (kDebugMode) {
@@ -254,6 +251,7 @@ class _BookingPageState extends State<BookingPage> {
       }
     }
   }
+
   Future<void> _checkForSelectedTime() async {
     try {
       final timeResult = await controller.runJavaScriptReturningResult('''
@@ -281,7 +279,6 @@ class _BookingPageState extends State<BookingPage> {
         }
 
         if (_selectedDate != null) {
-          // Improved time parsing
           final timeRegex = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)?', caseSensitive: false);
           final match = timeRegex.firstMatch(timeString);
 
@@ -290,7 +287,6 @@ class _BookingPageState extends State<BookingPage> {
             final minute = int.parse(match.group(2)!);
             final period = match.group(3) ?? '';
 
-            // Convert to 24-hour format
             if (period.toUpperCase() == 'PM' && hour < 12) hour += 12;
             if (period.toUpperCase() == 'AM' && hour == 12) hour = 0;
 
@@ -312,6 +308,7 @@ class _BookingPageState extends State<BookingPage> {
       }
     }
   }
+
   void _startProgressTracking() {
     progressTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (!mounted) return;
@@ -339,213 +336,205 @@ class _BookingPageState extends State<BookingPage> {
       }
     });
   }
-  void _logAppointmentDetails() {
-    if (kDebugMode) {
-      print('=== Current Selection ===');
-      print('Date: ${_selectedDate?.toString() ?? 'Not set'}');
-      print('Time: ${_selectedTime?.toString() ?? 'Not set'}');
-      if (_selectedDate != null && _selectedTime != null) {
-        print('Combined: ${_selectedTime!.toString()}');
-      }
-    }
-  }
 
   Future<void> _cleanPage() async {
     try {
-      // 1. COMPREHENSIVE CLEANUP
       await controller.runJavaScript(r'''
       (function() {
+        // 1. COMPREHENSIVE CLEANUP
         // Remove headers and logos
         document.querySelectorAll('header, [class*="logo"], [id*="logo"]').forEach(el => el.remove());
+        
         // ===== CREDIT CARD FORM STYLING =====
-(function() {
-  // ===== 1. FORM CONTAINER =====
-  const form = document.querySelector('form') || document.body;
-  form.style.cssText = `
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    max-width: 100%;
-    padding: 16px;
-    background: transparent;
-  `;
+        (function() {
+          // ===== 1. FORM CONTAINER =====
+          const form = document.querySelector('form') || document.body;
+          form.style.cssText = `
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 100%;
+            padding: 16px;
+            background: transparent;
+          `;
 
-  // ===== 2. CARD TYPE DROPDOWN ===== 
-  const cardType = document.getElementById('CCType');
-  if (cardType) {
-    cardType.style.cssText = `
-      width: 100%;
-      height: 44px;
-      padding: 0 16px;
-      margin: 8px 0 16px;
-      border-radius: 10px;
-      border: 1px solid #c7c7cc;
-      background-color: #ffffff;
-      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007aff'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
-      background-repeat: no-repeat;
-      background-position: right 16px center;
-      background-size: 16px;
-      -webkit-appearance: none;
-      font-size: 16px;
-      color: #000000;
-    `;
-    
-    // Add floating label
-    const label = document.createElement('label');
-    label.textContent = 'Card Type';
-    label.style.cssText = `
-      display: block;
-      font-size: 13px;
-      color: #3c3c43;
-      margin-bottom: -8px;
-      opacity: 0.6;
-    `;
-    cardType.parentNode.insertBefore(label, cardType);
-  }
+          // ===== 2. CARD TYPE DROPDOWN ===== 
+          const cardType = document.getElementById('CCType');
+          if (cardType) {
+            cardType.style.cssText = `
+              width: 100%;
+              height: 44px;
+              padding: 0 16px;
+              margin: 8px 0 16px;
+              border-radius: 10px;
+              border: 1px solid #c7c7cc;
+              background-color: #ffffff;
+              background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007aff'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+              background-repeat: no-repeat;
+              background-position: right 16px center;
+              background-size: 16px;
+              -webkit-appearance: none;
+              font-size: 16px;
+              color: #000000;
+            `;
+            
+            // Add floating label
+            const label = document.createElement('label');
+            label.textContent = 'Card Type';
+            label.style.cssText = `
+              display: block;
+              font-size: 13px;
+              color: #3c3c43;
+              margin-bottom: -8px;
+              opacity: 0.6;
+            `;
+            cardType.parentNode.insertBefore(label, cardType);
+          }
 
-  // ===== 3. CARD NUMBER =====
-  const cardNumber = document.getElementById('CCNum');
-  if (cardNumber) {
-    cardNumber.style.cssText = `
-      width: 100%;
-      height: 44px;
-      padding: 0 16px;
-      margin: 8px 0 16px;
-      border-radius: 10px;
-      border: 1px solid #c7c7cc;
-      background-color: #ffffff;
-      font-size: 16px;
-      color: #000000;
-    `;
-    
-    // Add floating label
-    const label = document.createElement('label');
-    label.textContent = 'Card Number';
-    label.style.cssText = `
-      display: block;
-      font-size: 13px;
-      color: #3c3c43;
-      margin-bottom: -8px;
-      opacity: 0.6;
-    `;
-    cardNumber.parentNode.insertBefore(label, cardNumber);
-    
-    // Add card icon
-    const icon = document.createElement('div');
-    icon.style.cssText = `
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 24px;
-      height: 16px;
-      background: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='24' height='16' viewBox='0 0 24 16'%3e%3cpath fill='%23007aff' d='M22 0H2C.9 0 0 .9 0 2v12c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V2c0-1.1-.9-2-2-2zm-7 3h2v2h-2V3zm3 0h2v2h-2V3zm-6 0h2v2h-2V3zm-3 0h2v2h-2V3zm-3 0h2v2H6V3zm0 3h2v2H6V6zm3 0h2v2H9V6zm3 0h2v2h-2V6zm3 0h2v2h-2V6zm3 0h2v2h-2V6zm0 3h2v2h-2V9zm-3 0h2v2h-2V9zm-3 0h2v2h-2V9zm-3 0h2v2h-2V9zm-3 0h2v2H6V9z'/%3e%3c/svg%3e") no-repeat center;
-    `;
-    cardNumber.parentNode.style.position = 'relative';
-    cardNumber.parentNode.appendChild(icon);
-  }
+          // ===== 3. CARD NUMBER =====
+          const cardNumber = document.getElementById('CCNum');
+          if (cardNumber) {
+            cardNumber.style.cssText = `
+              width: 100%;
+              height: 44px;
+              padding: 0 16px;
+              margin: 8px 0 16px;
+              border-radius: 10px;
+              border: 1px solid #c7c7cc;
+              background-color: #ffffff;
+              font-size: 16px;
+              color: #000000;
+            `;
+            
+            // Add floating label
+            const label = document.createElement('label');
+            label.textContent = 'Card Number';
+            label.style.cssText = `
+              display: block;
+              font-size: 13px;
+              color: #3c3c43;
+              margin-bottom: -8px;
+              opacity: 0.6;
+            `;
+            cardNumber.parentNode.insertBefore(label, cardNumber);
+            
+            // Add card icon
+            const icon = document.createElement('div');
+            icon.style.cssText = `
+              position: absolute;
+              right: 16px;
+              top: 50%;
+              transform: translateY(-50%);
+              width: 24px;
+              height: 16px;
+              background: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='24' height='16' viewBox='0 0 24 16'%3e%3cpath fill='%23007aff' d='M22 0H2C.9 0 0 .9 0 2v12c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V2c0-1.1-.9-2-2-2zm-7 3h2v2h-2V3zm3 0h2v2h-2V3zm-6 0h2v2h-2V3zm-3 0h2v2h-2V3zm-3 0h2v2H6V3zm0 3h2v2H6V6zm3 0h2v2H9V6zm3 0h2v2h-2V6zm3 0h2v2h-2V6zm3 0h2v2h-2V6zm0 3h2v2h-2V9zm-3 0h2v2h-2V9zm-3 0h2v2h-2V9zm-3 0h2v2h-2V9zm-3 0h2v2H6V9z'/%3e%3c/svg%3e") no-repeat center;
+            `;
+            cardNumber.parentNode.style.position = 'relative';
+            cardNumber.parentNode.appendChild(icon);
+          }
 
-  // ===== 4. EXPIRATION DATE =====
-  const expContainer = document.createElement('div');
-  expContainer.style.cssText = `
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
-  `;
-  
-  const expMonth = document.getElementById('ccexp');
-  const expYear = document.getElementById('ccyear');
-  
-  if (expMonth && expYear) {
-    expMonth.parentNode.insertBefore(expContainer, expMonth);
-    expContainer.appendChild(expMonth);
-    expContainer.appendChild(expYear);
-    
-    // Style both selects
-    [expMonth, expYear].forEach(select => {
-      select.style.cssText = `
-        flex: 1;
-        height: 44px;
-        padding: 0 16px;
-        border-radius: 10px;
-        border: 1px solid #c7c7cc;
-        background-color: #ffffff;
-        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007aff'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
-        background-repeat: no-repeat;
-        background-position: right 16px center;
-        background-size: 16px;
-        -webkit-appearance: none;
-        font-size: 16px;
-        color: #000000;
-      `;
-    });
-    
-    // Add floating label
-    const label = document.createElement('label');
-    label.textContent = 'Expiration Date';
-    label.style.cssText = `
-      display: block;
-      font-size: 13px;
-      color: #3c3c43;
-      margin-bottom: -8px;
-      opacity: 0.6;
-    `;
-    expContainer.parentNode.insertBefore(label, expContainer);
-  }
+          // ===== 4. EXPIRATION DATE =====
+          const expContainer = document.createElement('div');
+          expContainer.style.cssText = `
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+          `;
+          
+          const expMonth = document.getElementById('ccexp');
+          const expYear = document.getElementById('ccyear');
+          
+          if (expMonth && expYear) {
+            expMonth.parentNode.insertBefore(expContainer, expMonth);
+            expContainer.appendChild(expMonth);
+            expContainer.appendChild(expYear);
+            
+            // Style both selects
+            [expMonth, expYear].forEach(select => {
+              select.style.cssText = `
+                flex: 1;
+                height: 44px;
+                padding: 0 16px;
+                border-radius: 10px;
+                border: 1px solid #c7c7cc;
+                background-color: #ffffff;
+                background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007aff'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+                background-repeat: no-repeat;
+                background-position: right 16px center;
+                background-size: 16px;
+                -webkit-appearance: none;
+                font-size: 16px;
+                color: #000000;
+              `;
+            });
+            
+            // Add floating label
+            const label = document.createElement('label');
+            label.textContent = 'Expiration Date';
+            label.style.cssText = `
+              display: block;
+              font-size: 13px;
+              color: #3c3c43;
+              margin-bottom: -8px;
+              opacity: 0.6;
+            `;
+            expContainer.parentNode.insertBefore(label, expContainer);
+          }
 
-  // ===== 5. NAME/ADDRESS FIELDS =====
-  const fields = [
-    {id: 'CCFname', label: 'First Name'},
-    {id: 'CCLname', label: 'Last Name'}, 
-    {id: 'BillingAddress', label: 'Address'},
-    {id: 'BillingState', label: 'State'},
-    {id: 'BillingPostal', label: 'ZIP Code'}
-  ];
-  
-  fields.forEach(field => {
-    const element = document.getElementById(field.id);
-    if (element) {
-      element.style.cssText = `
-        width: 100%;
-        height: 44px;
-        padding: 0 16px;
-        margin: 8px 0 16px;
-        border-radius: 10px;
-        border: 1px solid #c7c7cc;
-        background-color: #ffffff;
-        font-size: 16px;
-        color: #000000;
-      `;
-      
-      // Add floating label
-      const label = document.createElement('label');
-      label.textContent = field.label;
-      label.style.cssText = `
-        display: block;
-        font-size: 13px;
-        color: #3c3c43;
-        margin-bottom: -8px;
-        opacity: 0.6;
-      `;
-      element.parentNode.insertBefore(label, element);
-      
-      // Special handling for ZIP code
-      if (field.id === 'BillingPostal') {
-        element.inputMode = 'numeric';
-      }
-    }
-  });
+          // ===== 5. NAME/ADDRESS FIELDS =====
+          const fields = [
+            {id: 'CCFname', label: 'First Name'},
+            {id: 'CCLname', label: 'Last Name'}, 
+            {id: 'BillingAddress', label: 'Address'},
+            {id: 'BillingState', label: 'State'},
+            {id: 'BillingPostal', label: 'ZIP Code'}
+          ];
+          
+          fields.forEach(field => {
+            const element = document.getElementById(field.id);
+            if (element) {
+              element.style.cssText = `
+                width: 100%;
+                height: 44px;
+                padding: 0 16px;
+                margin: 8px 0 16px;
+                border-radius: 10px;
+                border: 1px solid #c7c7cc;
+                background-color: #ffffff;
+                font-size: 16px;
+                color: #000000;
+              `;
+              
+              // Add floating label
+              const label = document.createElement('label');
+              label.textContent = field.label;
+              label.style.cssText = `
+                display: block;
+                font-size: 13px;
+                color: #3c3c43;
+                margin-bottom: -8px;
+                opacity: 0.6;
+              `;
+              element.parentNode.insertBefore(label, element);
+              
+              // Special handling for ZIP code
+              if (field.id === 'BillingPostal') {
+                element.inputMode = 'numeric';
+              }
+            }
+          });
 
-  // ===== 6. VALIDATION STYLING =====
-  document.querySelectorAll('[required]').forEach(el => {
-    el.addEventListener('invalid', () => {
-      el.style.borderColor = '#ff3b30';
-      el.style.backgroundColor = '#fff5f5';
-    });
-    el.addEventListener('input', () => {
-      el.style.borderColor = '#c7c7cc';
-      el.style.backgroundColor = '#ffffff';
-    });
-  });
-})();
+          // ===== 6. VALIDATION STYLING =====
+          document.querySelectorAll('[required]').forEach(el => {
+            el.addEventListener('invalid', () => {
+              el.style.borderColor = '#ff3b30';
+              el.style.backgroundColor = '#fff5f5';
+            });
+            el.addEventListener('input', () => {
+              el.style.borderColor = '#c7c7cc';
+              el.style.backgroundColor = '#ffffff';
+            });
+          });
+        })();
+
         // Remove background images and set white background
         document.body.style.background = 'white !important';
         document.querySelectorAll('div, section').forEach(el => {
@@ -706,80 +695,6 @@ class _BookingPageState extends State<BookingPage> {
         }
       })();
     ''');
-
-      // 3. APPLY STYLING (your existing code)
-      await controller.runJavaScript(r'''
-              (function() {
-          // Final check and nuclear option if still present
-          if (document.body.textContent.includes('New Tab')) {
-            // Remove last few elements
-            const children = Array.from(document.body.children);
-            for (let i = Math.max(0, children.length - 3); i < children.length; i++) {
-              children[i].remove();
-            }
-            
-            // Direct text replacement as last resort
-            document.body.textContent = document.body.textContent.replace(/New Tab/g, '');
-          }
-          
-          // Remove any empty containers
-          document.querySelectorAll('div:empty, section:empty').forEach(el => el.remove());
-
-          // Final styling pass for form controls
-          document.querySelectorAll('.form-control.showscroll').forEach(el => {
-            el.style.cssText = `
-              -webkit-appearance: none !important;
-              font-family: -apple-system, sans-serif !important;
-              padding: 12px !important;
-              border-radius: 8px !important;
-              border: 1px solid #d1d1d6 !important;
-              background-color: white !important;
-              background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2373B7C1'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e") !important;
-              background-repeat: no-repeat !important;
-              background-position: right 10px center !important;
-              background-size: 16px !important;
-              padding-right: 30px !important;
-            `;
-          });
-
-          // Final styling pass for continue button
-          const continueBtn = document.getElementById('continueBtn');
-          if (continueBtn) {
-            continueBtn.style.cssText = `
-              background-color: #73B7C1 !important;
-              color: white !important;
-              border-radius: 6px !important;
-              padding: 10px 20px !important;
-              border: none !important;
-              font-weight: bold !important;
-              cursor: pointer !important;
-              transition: background-color 0.3s ease !important;
-            `;
-          }
-
-          // Final styling pass for back button
-          const backBtn = document.getElementById('backBtn');
-          if (backBtn) {
-            backBtn.style.cssText = `
-              background-color: #73B7C1 !important;
-              color: white !important;
-              border-radius: 6px !important;
-              padding: 10px 20px !important;
-              border: none !important;
-              font-weight: bold !important;
-              cursor: pointer !important;
-              transition: background-color 0.3s ease !important;
-              margin-right: 10px !important;
-            `;
-          }
-
-          // Hide web spinner
-          const spinner = document.getElementById('spinnerrel');
-          if (spinner) {
-            spinner.style.display = 'none';
-          }
-        })();
-      ''');
 
       // 3. APPLY STYLING
       await controller.runJavaScript(r'''
@@ -945,7 +860,7 @@ class _BookingPageState extends State<BookingPage> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.support_agent,color: secondaryColor,),
+            icon: Icon(Icons.support_agent, color: secondaryColor),
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const ContactUsScreen()),
@@ -977,7 +892,7 @@ class _BookingPageState extends State<BookingPage> {
           Expanded(
             child: Stack(
               children: [
-                if (_showWebView) // Only show WebView after delay
+                if (_showWebView)
                   Positioned.fill(
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 30),
@@ -994,7 +909,6 @@ class _BookingPageState extends State<BookingPage> {
                     ),
                   ),
 
-                // Loading indicator (shown before WebView appears)
                 if (!_showWebView)
                   const Center(
                     child: Column(
@@ -1002,12 +916,11 @@ class _BookingPageState extends State<BookingPage> {
                       children: [
                         CupertinoActivityIndicator(radius: 20),
                         SizedBox(height: 16),
-                        Text('Preparing booking system...', style: TextStyle(fontSize: 15, color: Colors.grey),),
+                        Text('Preparing booking system...', style: TextStyle(fontSize: 15, color: Colors.grey)),
                       ],
                     ),
                   ),
 
-                // Error overlay
                 if (_hasError && _reloadAttempts >= _maxReloadAttempts)
                   Positioned.fill(
                     child: Container(
@@ -1042,7 +955,6 @@ class _BookingPageState extends State<BookingPage> {
 
                 if (isLoading && _showWebView) const Center(child: CupertinoActivityIndicator(radius: 20)),
 
-                // Add to Calendar Card
                 if (isFinalPage && !isLoading && _selectedDate != null && _selectedTime != null)
                   Positioned(
                     bottom: 120,
@@ -1127,7 +1039,6 @@ class _BookingPageState extends State<BookingPage> {
                     ),
                   ),
 
-                // Finish Button
                 if (isFinalPage && !isLoading)
                   Positioned(
                     bottom: 60,
